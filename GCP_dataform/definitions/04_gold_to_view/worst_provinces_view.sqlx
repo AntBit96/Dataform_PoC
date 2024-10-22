@@ -1,0 +1,27 @@
+config {
+    type: "view",
+    disabled: false,
+    schema: config.dataset_dest_name,
+    name: "v_monthly_worst_provinces",
+    tags: ["views"],
+}
+
+SELECT
+  province_code,
+  province_name,
+  PROV.TOTAL_CONFIRMED_CASES AS province_confirmed_cases,
+  REG.TOTAL_CONFIRMED_CASES/COUNT(DISTINCT province_code) OVER(PARTITION BY region_code) AS region_avg_confirmed_cases
+FROM
+  ${ref("monthly_province")} AS PROV
+INNER JOIN
+  ${ref("monthly_region")} AS REG
+USING
+  (month,
+    year,
+    region_code)
+QUALIFY
+  PROV.TOTAL_CONFIRMED_CASES > REG.TOTAL_CONFIRMED_CASES/ (COUNT(DISTINCT province_code) OVER(PARTITION BY region_code))
+
+post_operations {
+  ${config.log_events("v_monthly_worst_provinces", "OK")}
+}

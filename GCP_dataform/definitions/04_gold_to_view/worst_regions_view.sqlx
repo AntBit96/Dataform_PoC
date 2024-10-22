@@ -1,0 +1,26 @@
+config {
+    type: "view",
+    disabled: false,
+    schema: config.dataset_dest_name,
+    name: "v_monthly_worst_regions",
+    tags: ["views"],
+}
+
+SELECT
+  region_code,
+  region_name,
+  REG.TOTAL_CONFIRMED_CASES AS region_confirmed_cases,
+  TRENDS.TOTAL_CONFIRMED_CASES/(COUNT(DISTINCT region_code) OVER()) AS nation_avg_confirmed_cases,
+FROM
+  ${ref("monthly_trends")} AS TRENDS
+INNER JOIN
+  ${ref("monthly_region")} AS REG
+USING
+  (month,
+    year)
+QUALIFY
+ REG.TOTAL_CONFIRMED_CASES > TRENDS.TOTAL_CONFIRMED_CASES/ (COUNT(DISTINCT region_code) OVER())
+
+post_operations {
+  ${config.log_events("v_monthly_worst_regions", "OK")}
+}

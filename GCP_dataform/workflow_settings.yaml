@@ -1,0 +1,8 @@
+defaultProject: jit-training-dma
+defaultLocation: EU
+defaultDataset: dataform
+defaultAssertionDataset: dataform_assertions
+dataformCoreVersion: 3.0.0
+vars:
+    destination_dataset: "bit_test_dataform"
+    processing_date: "20241015"

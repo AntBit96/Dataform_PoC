@@ -1,0 +1,119 @@
+# This YAML configuration file defines a workflow for orchestrating Dataform operations on Google Cloud Platform (GCP).
+# 
+# Main Workflow:
+# - The `main` section contains the primary steps of the workflow.
+# - `init`: Initializes environment variables and assigns them to local variables.
+# - `printDate`: Logs the execution date.
+# - `dataTrasform`: Attempts to call the `DataformElaboration` function and handles any exceptions.
+#
+# DataformElaboration Function:
+# - The `DataformElaboration` section defines a series of steps to interact with Dataform.
+# - `setUpDataformVariables`: Sets up URLs for Dataform API endpoints.
+# - `createCompilationResult`: Sends an HTTP POST request to create a compilation result.
+# - `createWorkflowInvocation`: Sends an HTTP POST request to create a workflow invocation.
+# - `sleep`: Pauses execution for 30 seconds.
+# - `getDataformStatus`: Sends an HTTP GET request to retrieve the status of the Dataform workflow.
+# - `printStatus`: Logs the current status of the Dataform workflow.
+# - `checkDataformStatus`: Checks the status of the Dataform workflow and handles different states (RUNNING, SUCCEEDED, or error).
+# - `errorRaiseGENERAL`: Raises an error if the Dataform status is not RUNNING, SUCCEEDED, or FAILED.
+main:
+    steps:
+    - init:
+        assign:
+        - projectId: ${sys.get_env("GOOGLE_CLOUD_PROJECT_ID")}
+        - dataformRepo: ${sys.get_env("dataformRepo")}
+        - region_name: ${sys.get_env("region_name")}
+        - running_date_year: ${text.substring(time.format(sys.now()),0, 4)}
+        - running_date_month: ${text.substring(time.format(sys.now()),5, 7)}
+        - running_date_day: ${text.substring(time.format(sys.now()),8, 10)}
+        - destination_dataset: ${sys.get_env("destination_dataset")}
+    - printDate:
+        call: sys.log
+        args:
+            data: ${"ececution date- "+running_date_year+running_date_month+running_date_day}
+    - dataTrasform:
+        try:
+            call: DataformElaboration
+            args:
+                projectId: ${projectId}
+                destination_dataset: ${destination_dataset}
+                running_date: ${running_date_year+running_date_month+running_date_day}
+                execution_tags: "main_pipeline"   
+                region_name: ${region_name}
+                dataformRepo: ${dataformRepo}
+        except:
+            as: e
+            steps:   
+                - errorRaise :
+                    raise: ${e}                
+    
+DataformElaboration :
+    params : [projectId, destination_dataset, running_date, execution_tags, region_name, dataformRepo]
+    steps:
+    - setUpDataformVariables:
+        assign:
+        - dataformBaseURL: https://dataform.googleapis.com/v1beta1/
+        - dataformRepositoryURL: ${"projects/"+projectId+"/locations/"+region_name+"/repositories/" + dataformRepo}
+    - createCompilationResult:
+        call: http.post
+        args:
+            url: ${dataformBaseURL+dataformRepositoryURL+"/compilationResults"}
+            auth:
+                type: OAuth2
+            body:
+                gitCommitish: main
+                codeCompilationConfig: 
+                    vars: {       
+                        destination_dataset: "${destination_dataset}",
+                        processing_date: "${running_date}"
+                    }
+        result: compilationResult
+    - createWorkflowInvocation:
+        call: http.post
+        args:
+          url: ${dataformBaseURL+dataformRepositoryURL+"/workflowInvocations"}
+          auth:
+            type: OAuth2
+          body:
+            compilationResult: ${compilationResult.body.name}
+            invocationConfig:
+              transitiveDependentsIncluded: true
+              includedTags:
+                    - ${execution_tags}
+        result: workflowInvocation 
+    - sleep:
+        call: sys.sleep
+        args:
+            seconds: 30
+    - getDataformStatus:
+        call: http.get
+        args:
+            url: ${dataformBaseURL + workflowInvocation.body.name}
+            auth:
+                type: OAuth2
+        result: dataform_status
+    - printStatus:
+        call: sys.log
+        args:
+            data: ${"Dataform status currently is "+dataform_status.body.state}
+    - checkDataformStatus:
+        switch:
+        - condition: ${dataform_status.body.state == "RUNNING"}
+          next: sleep
+        - condition: ${dataform_status.body.state != "RUNNING" and dataform_status.body.state != "SUCCEEDED"}
+          steps:                                            
+                - errorRaise :
+                    raise:
+                        message: ${dataform_status.body}
+        - condition: ${dataform_status.body.state == "SUCCEEDED" }
+          steps:                        
+                - complete:
+                    return: ${dataform_status}
+    - errorRaiseGENERAL :
+        raise:
+          message: "dataform got a different status than RUNNING, SUCCEDED o FAILED"
+
+
+
+
+

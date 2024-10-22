@@ -1,0 +1,23 @@
+config {
+    type: "table",
+    disabled: false,
+    schema: config.dataset_dest_name,
+    name: "monthly_region",
+    tags: ["silver_to_gold", "main_pipeline"],
+}
+
+SELECT
+  FORMAT_TIMESTAMP('%B', date) AS month,
+  FORMAT_TIMESTAMP('%Y', date) AS year,
+  region_code,
+  region_name,
+  AVG(total_confirmed_cases) AS TOTAL_CONFIRMED_CASES,
+  MAX(deaths) AS TOTAL_CONFIRMED_DEATHS
+FROM
+  ${ref("silver_data_by_region")}
+GROUP BY
+  ALL
+
+post_operations {
+  ${config.log_events("monthly_region", "OK")}
+}
