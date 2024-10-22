@@ -1,21 +1,22 @@
 // Description: Configuration file for the dataform project
 const dataset_dest_name = dataform.projectConfig.vars.destination_dataset
+const project_name = dataform.projectConfig.defaultProject
 
 const tables = [{
         name: "data_by_province",
-        source: "jit-training-dma.bit_test_dataform.src_data_by_province",
+        source: "bigquery-public-data.covid19_italy.data_by_province",
         update_mode: "incremental",
         keys: ["date", "province_code"]
     },
     {
         name: "data_by_region",
-        source: "jit-training-dma.bit_test_dataform.src_data_by_region",
+        source: "bigquery-public-data.covid19_italy.data_by_region",
         update_mode: "incremental",
         keys: ["date", "region_code"]
     },
     {
         name: "national_trends",
-        source: "jit-training-dma.bit_test_dataform.src_national_trends",
+        source: "bigquery-public-data.covid19_italy.national_trends",
         update_mode: "table",
         keys: []
     }
@@ -29,12 +30,12 @@ const delete_partition_query = (table_name) => {
 
     SET table_exists = EXISTS (
     SELECT 1
-    FROM \`jit-training-dma.${dataset_dest_name}.INFORMATION_SCHEMA.TABLES\`
+    FROM \`${project_name}.${dataset_dest_name}.INFORMATION_SCHEMA.TABLES\`
     WHERE table_name = '${table_name}'
     );
 
     IF table_exists THEN
-    DELETE FROM \`jit-training-dma.${dataset_dest_name}.${table_name}\`
+    DELETE FROM \`${project_name}.${dataset_dest_name}.${table_name}\`
     WHERE DATE(LOAD_TS) = ${running_date};
     END IF;
   `
@@ -42,7 +43,7 @@ const delete_partition_query = (table_name) => {
 
 const log_events = (table_name, status) => {
     return `
-    INSERT INTO \`jit-training-dma.${dataset_dest_name}.log_events\`
+    INSERT INTO \`${project_name}.${dataset_dest_name}.log_events\`
     VALUES ("${table_name}","${status}",CURRENT_TIMESTAMP())
     `
 }
