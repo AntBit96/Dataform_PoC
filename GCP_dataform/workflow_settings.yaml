@@ -1,4 +1,4 @@
-defaultProject: jit-training-dma
+defaultProject: your_project
 defaultLocation: EU
 defaultDataset: dataform
 defaultAssertionDataset: dataform_assertions
